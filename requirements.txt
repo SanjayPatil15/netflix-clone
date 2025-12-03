@@ -9,3 +9,8 @@ matplotlib
 Flask
 Flask-WTF
 WTForms
+Flask-Mail
+SQLAlchemy>=2.0.0
+python-dotenv
+requests
+pytube

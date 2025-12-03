@@ -1,7 +1,16 @@
-# 🎬 CINESENSE — FINAL STABLE BUILD (AI Picks + Movie Modal + Chat fixes)
-# ✅ Gmail OTP + Genre + Search + AI + Watchlist — FULLY WORKING + Memory Safe
+# -*- coding: utf-8 -*-
+# CINESENSE - Movie Recommender System
+# Gmail OTP + Genre + Search + AI + Watchlist - FULLY WORKING
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import sys
+import codecs
+
+# Set UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_mail import Mail, Message
 import os, pickle, re, json, random, pandas as pd
 from datetime import datetime, timedelta
@@ -18,12 +27,12 @@ import requests
 
 
 # --- Local Imports ---
-from utils.DataLoader import DataLoader
-from utils.auth import load_users, save_users, save_session, clear_session, load_session
-from models.ALSModel import ALSRecommender
-from models.DemographicsModel import DemographicRecommender
-from models.ContentSimilarity import ContentBasedRecommender
-from models.HybridModel import HybridRecommender
+from backend.utils.DataLoader import DataLoader
+from backend.utils.auth import load_users, save_users, save_session, clear_session, load_session
+from backend.models.ALSModel import ALSRecommender
+from backend.models.DemographicsModel import DemographicRecommender
+from backend.models.ContentSimilarity import ContentBasedRecommender
+from backend.models.HybridModel import HybridRecommender
 
 OMDB_API_KEY = "55988766"
 TMDB_API_KEY = "3b603807d08eac0ea1b7cf3f85fae27d"
@@ -41,8 +50,36 @@ def fuzzy_find(title, all_titles, cutoff=0.5):
 
 
 # ---------------- APP CONFIG ----------------
-app = Flask(__name__)
+app = Flask(__name__,
+            template_folder='frontend/templates',
+            static_folder='frontend/static')
 app.secret_key = "your_secret_key"
+
+# Completely disable caching for development
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+# Override Flask's static file serving to force no-cache
+@app.route('/static/<path:filename>')
+def custom_static(filename):
+    """Custom static file handler that forces no-cache headers"""
+    response = send_from_directory('frontend/static', filename)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    response.headers['Last-Modified'] = datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
+    return response
+
+@app.after_request
+def add_no_cache_headers(response):
+    """
+    Add no-cache headers to all responses during development.
+    This prevents 304 (Not Modified) responses.
+    """
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 # ✅ Gmail Config
 app.config.update(
@@ -61,7 +98,7 @@ print("✅ Flask app started — CineSense fully connected")
 CACHE_DIR = "model_cache"
 ALS_CACHE = os.path.join(CACHE_DIR, "als_model.pkl")
 CONTENT_CACHE = os.path.join(CACHE_DIR, "content_vectors.pkl")
-POSTERS_DIR = os.path.join("static", "posters")
+POSTERS_DIR = os.path.join("frontend", "static", "posters")
 DEFAULT_POSTER = "/static/default_poster.png"
 WATCHLIST_FILE = os.path.join(CACHE_DIR, "watchlist.json")
 
@@ -91,16 +128,16 @@ def clean_filename(title: str) -> str:
 
 def find_poster(title: str, folder: str = "posters") -> str:
     """
-    Smart poster finder that searches static/<folder> for .jpg/.png.
+    Smart poster finder that searches frontend/static/<folder> for .jpg/.png.
     Matches are case-insensitive and allow extra suffixes (e.g. _1996_1996).
     """
     # base pattern to match
     base = re.sub(r"[^\w\s]", "", title).replace(" ", "_").lower()
 
     # gather candidates
-    patterns = [os.path.join("static", folder, "*.jpg"),
-                os.path.join("static", folder, "*.jpeg"),
-                os.path.join("static", folder, "*.png")]
+    patterns = [os.path.join("frontend", "static", folder, "*.jpg"),
+                os.path.join("frontend", "static", folder, "*.jpeg"),
+                os.path.join("frontend", "static", folder, "*.png")]
     candidates = []
     for p in patterns:
         candidates.extend(glob.glob(p))
@@ -109,11 +146,13 @@ def find_poster(title: str, folder: str = "posters") -> str:
     for path in candidates:
         name = os.path.basename(path).lower()
         if name.startswith(base):  # best case
-            return "/" + path.replace("\\", "/")
+            # Return path relative to static folder for Flask
+            return "/static/" + folder + "/" + os.path.basename(path)
     for path in candidates:
         name = os.path.basename(path).lower()
         if base in name:
-            return "/" + path.replace("\\", "/")
+            # Return path relative to static folder for Flask
+            return "/static/" + folder + "/" + os.path.basename(path)
 
     return DEFAULT_POSTER
 
@@ -307,12 +346,54 @@ def dashboard():
     users = load_users()
     user = users.get(email)
 
-    # 🎯 AI Picks (safe fallback)
+    # 🎯 AI Picks (using same logic as /ai route for consistency)
+    # Get user's watchlist to exclude from recommendations
+    user_watchlist = load_watchlist().get(email, [])
+    
+    ai_movies = []
     try:
-        ai_recs = hybrid_model.recommend(user_id=email, top_n=12)
-        ai_movies = [{"title": str(t), "poster": get_poster(str(t)), "reason": "AI Personalized"} for t, _ in ai_recs]
-    except Exception:
-        ai_movies = []
+        rec = None
+        try:
+            rec = hybrid_model.recommend(user_id=email, top_n=30)  # Get more to filter
+        except TypeError:
+            try:
+                rec = hybrid_model.recommend(user_id=email, n=30)
+            except TypeError:
+                rec = hybrid_model.recommend(email)
+        
+        movie_ids = []
+        if rec:
+            first = rec[0]
+            if isinstance(first, (list, tuple)):
+                # Extract movie IDs from tuples (movie_id, score)
+                for item in rec:
+                    movie_ids.append(int(item[0]))
+            else:
+                # Direct movie IDs
+                movie_ids = [int(x) for x in rec]
+        
+        # Convert movie IDs to titles
+        titles = []
+        for movie_id in movie_ids:
+            movie_row = movies_df[movies_df["movieId"] == movie_id]
+            if not movie_row.empty:
+                titles.append(movie_row.iloc[0]["title"])
+        
+        # Filter out watchlist movies
+        filtered_titles = [t for t in titles if t not in user_watchlist]
+        
+        if filtered_titles:
+            ai_movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized"} for t in filtered_titles[:12]]
+    except Exception as e:
+        print(f"[WARN] AI recommendations failed: {e}")
+    
+    # Fallback to trending if no AI recommendations
+    if not ai_movies:
+        top_ids = ratings_df.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(30).index.tolist()
+        trending_titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
+        # Filter out watchlist movies from trending too
+        filtered_trending = [t for t in trending_titles if t not in user_watchlist]
+        ai_movies = [{"title": t, "poster": get_poster(t), "reason": "Trending"} for t in filtered_trending[:12]]
 
     # ❤️ Watchlist
     watchlist_data = load_watchlist().get(email, [])
@@ -374,27 +455,47 @@ def ai_suggestions():
     email = load_session()
     if not email:
         return redirect(url_for("login_view"))
+    
+    # Get user's watchlist to exclude from recommendations
+    user_watchlist = load_watchlist().get(email, [])
+    
     try:
         rec = None
         try:
-            rec = hybrid_model.recommend(user_id=email, top_n=20)
+            rec = hybrid_model.recommend(user_id=email, top_n=40)  # Get more to filter
         except TypeError:
             try:
-                rec = hybrid_model.recommend(user_id=email, n=20)
+                rec = hybrid_model.recommend(user_id=email, n=40)
             except TypeError:
                 rec = hybrid_model.recommend(email)
-        titles = []
+        
+        movie_ids = []
         if rec:
             first = rec[0]
             if isinstance(first, (list, tuple)):
-                for a in rec:
-                    titles.append(str(a[0]))
+                # Extract movie IDs from tuples (movie_id, score)
+                for item in rec:
+                    movie_ids.append(int(item[0]))
             else:
-                titles = [str(x) for x in rec]
-        if not titles:
-            top_ids = ratings_df.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(12).index.tolist()
-            titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
-        movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized"} for t in titles[:20]]
+                # Direct movie IDs
+                movie_ids = [int(x) for x in rec]
+        
+        # Convert movie IDs to titles
+        titles = []
+        for movie_id in movie_ids:
+            movie_row = movies_df[movies_df["movieId"] == movie_id]
+            if not movie_row.empty:
+                titles.append(movie_row.iloc[0]["title"])
+        
+        # Filter out watchlist movies
+        filtered_titles = [t for t in titles if t not in user_watchlist]
+        
+        if not filtered_titles:
+            top_ids = ratings_df.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(30).index.tolist()
+            all_titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
+            filtered_titles = [t for t in all_titles if t not in user_watchlist]
+        
+        movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized"} for t in filtered_titles[:20]]
         return render_template("recommendations.html", recommendations=movies, selected_genre="AI Picks")
     except Exception as e:
         print("❌ AI Picks error:", e)
@@ -608,12 +709,16 @@ def ai_chat():
 @app.route("/search_suggestions")
 def search_suggestions():
     """
-    Robust search suggestions:
-      - returns up to 10 exact substring matches (case-insensitive)
-      - if none, returns up to 6 fuzzy matches using difflib.get_close_matches
-      - returns [] quickly on empty query
+    Enhanced contextual search with filters:
+      - Genre filtering
+      - Year range filtering
+      - Fuzzy matching
+      - Returns detailed movie info with posters
     """
     query = request.args.get("query", "")
+    genre_filter = request.args.get("genre", "")
+    year_filter = request.args.get("year", "")
+    
     if not query:
         return jsonify([])
 
@@ -621,21 +726,141 @@ def search_suggestions():
     if not q:
         return jsonify([])
 
-    matches = movies_df[movies_df["title"].str.lower().str.contains(q, na=False)]
-    exact = matches["title"].dropna().unique().tolist()
-    if exact:
-        return jsonify(exact[:50])
+    # Start with all movies
+    filtered_df = movies_df.copy()
+    
+    # Apply genre filter
+    if genre_filter:
+        filtered_df = filtered_df[filtered_df["genres"].str.contains(genre_filter, case=False, na=False)]
+    
+    # Apply year filter
+    if year_filter:
+        if year_filter == "2020s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(202[0-9])", regex=True, na=False)]
+        elif year_filter == "2010s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(201[0-9])", regex=True, na=False)]
+        elif year_filter == "2000s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(200[0-9])", regex=True, na=False)]
+        elif year_filter == "1990s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(199[0-9])", regex=True, na=False)]
+        elif year_filter == "1980s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(198[0-9])", regex=True, na=False)]
+        elif year_filter == "1970s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(197[0-9])", regex=True, na=False)]
+        elif year_filter == "older":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(19[0-6][0-9])", regex=True, na=False)]
+    
+    # Search in filtered results
+    matches = filtered_df[filtered_df["title"].str.lower().str.contains(q, na=False)]
+    
+    # Build detailed results
+    results = []
+    for _, row in matches.head(10).iterrows():
+        title = row["title"]
+        # Extract year from title
+        year_match = re.search(r"\((\d{4})\)", title)
+        year = year_match.group(1) if year_match else ""
+        
+        results.append({
+            "title": title,
+            "genre": row.get("genres", "Unknown"),
+            "year": year,
+            "poster": get_poster(title)
+        })
+    
+    # If no exact matches, try fuzzy matching
+    if not results:
+        all_titles = filtered_df["title"].dropna().tolist()
+        fuzzy = get_close_matches(q, [t.lower() for t in all_titles], n=6, cutoff=0.45)
+        if fuzzy:
+            lc_to_real = {t.lower(): t for t in all_titles}
+            for f in fuzzy:
+                real = lc_to_real.get(f)
+                if real:
+                    row = filtered_df[filtered_df["title"] == real].iloc[0]
+                    year_match = re.search(r"\((\d{4})\)", real)
+                    year = year_match.group(1) if year_match else ""
+                    results.append({
+                        "title": real,
+                        "genre": row.get("genres", "Unknown"),
+                        "year": year,
+                        "poster": get_poster(real)
+                    })
+    
+    return jsonify(results)
 
-    all_titles = movies_df["title"].dropna().unique().tolist()
-    fuzzy = get_close_matches(q, [t.lower() for t in all_titles], n=6, cutoff=0.45)
-    fuzzy_real = []
-    if fuzzy:
-        lc_to_real = {t.lower(): t for t in all_titles}
-        for f in fuzzy:
-            real = lc_to_real.get(f)
-            if real and real not in fuzzy_real:
-                fuzzy_real.append(real)
-    return jsonify(fuzzy_real)
+
+@app.route("/search")
+def search_page():
+    """
+    Full search results page with filters
+    """
+    query = request.args.get("q", "")
+    genre_filter = request.args.get("genre", "")
+    year_filter = request.args.get("year", "")
+    
+    email = load_session()
+    users = load_users()
+    user = users.get(email) if email else None
+    
+    if not query:
+        flash("Please enter a search query")
+        return redirect(url_for("dashboard"))
+    
+    # Start with all movies
+    filtered_df = movies_df.copy()
+    
+    # Apply genre filter
+    if genre_filter:
+        filtered_df = filtered_df[filtered_df["genres"].str.contains(genre_filter, case=False, na=False)]
+    
+    # Apply year filter
+    if year_filter:
+        if year_filter == "2020s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(202[0-9])", regex=True, na=False)]
+        elif year_filter == "2010s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(201[0-9])", regex=True, na=False)]
+        elif year_filter == "2000s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(200[0-9])", regex=True, na=False)]
+        elif year_filter == "1990s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(199[0-9])", regex=True, na=False)]
+        elif year_filter == "1980s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(198[0-9])", regex=True, na=False)]
+        elif year_filter == "1970s":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(197[0-9])", regex=True, na=False)]
+        elif year_filter == "older":
+            filtered_df = filtered_df[filtered_df["title"].str.contains(r"(19[0-6][0-9])", regex=True, na=False)]
+    
+    # Search in filtered results
+    q = query.strip().lower()
+    matches = filtered_df[filtered_df["title"].str.lower().str.contains(q, na=False)]
+    
+    # If no exact matches, try fuzzy
+    if matches.empty:
+        all_titles = filtered_df["title"].dropna().tolist()
+        fuzzy = get_close_matches(q, [t.lower() for t in all_titles], n=50, cutoff=0.4)
+        if fuzzy:
+            lc_to_real = {t.lower(): t for t in all_titles}
+            fuzzy_titles = [lc_to_real.get(f) for f in fuzzy if lc_to_real.get(f)]
+            matches = filtered_df[filtered_df["title"].isin(fuzzy_titles)]
+    
+    # Build results
+    results = []
+    for _, row in matches.head(50).iterrows():
+        title = row["title"]
+        results.append({
+            "title": title,
+            "poster": get_poster(title),
+            "reason": f"Search: {query}" + (f" | {genre_filter}" if genre_filter else "") + (f" | {year_filter}" if year_filter else "")
+        })
+    
+    search_title = f"Search: {query}"
+    if genre_filter:
+        search_title += f" | {genre_filter}"
+    if year_filter:
+        search_title += f" | {year_filter}"
+    
+    return render_template("recommendations.html", recommendations=results, user=user, selected_genre=search_title)
 
 
 # ---------------- RECOMMEND BY MOVIE ----------------
@@ -764,3 +989,4 @@ def movie_details(title):
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
     app.run(debug=True)
+# Trigger reload 

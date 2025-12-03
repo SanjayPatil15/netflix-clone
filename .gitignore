@@ -1,0 +1,95 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+cinesense.db
+
+# Cache
+model_cache/*.pkl
+model_cache/*.json
+__pycache__/
+*.pyc
+
+# User Data (Sensitive)
+data/session.json
+data/users_db.json
+data/user_ratings.json
+data/watchlist.json
+model_cache/otp_store.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary Files
+*.tmp
+*.temp
+~*
+
+# Large Datasets (optional - uncomment if needed)
+# ml-100k/
+# data/wikipedia/
+
+# Generated Posters (optional - uncomment if regenerating)
+# static/posters/*.jpg
+# static/posters/*.png
+# static/genre_posters/*.jpg
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# Documentation Build
+docs/_build/
+site/

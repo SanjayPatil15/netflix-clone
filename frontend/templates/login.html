@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Login - CineSense{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block extra_css %}
+.auth-container {
+    max-width: 450px;
+    margin: 100px auto;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 50px 40px;
+    border-radius: 15px;
+    box-shadow: 0 0 30px rgba(229, 9, 20, 0.4);
+}
+
+.auth-container h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #e50914;
+    text-shadow: 0 0 20px rgba(229, 9, 20, 0.6);
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #ddd;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    transition: 0.3s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #e50914;
+    box-shadow: 0 0 10px rgba(229, 9, 20, 0.3);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: #e50914;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-primary:hover {
+    background: #f40612;
+    box-shadow: 0 0 20px rgba(229, 9, 20, 0.6);
+}
+
+.auth-links {
+    text-align: center;
+    margin-top: 25px;
+    color: #999;
+}
+
+.auth-links a {
+    color: #e50914;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <h1>🎬 Login to CineSense</h1>
+    
+    <form method="POST" action="/login">
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required placeholder="Enter your email">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required placeholder="Enter your password">
+        </div>
+        
+        <button type="submit" class="btn-primary">Login</button>
+    </form>
+    
+    <div class="auth-links">
+        <p>Don't have an account? <a href="/signup">Sign up</a></p>
+        <p><a href="#" onclick="forgotPassword(); return false;">Forgot Password?</a></p>
+    </div>
+</div>
+
+<script>
+function forgotPassword() {
+    const email = prompt("Enter your email address:");
+    if (email) {
+        fetch('/forgot_password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.href = data.redirect;
+            } else {
+                alert(data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

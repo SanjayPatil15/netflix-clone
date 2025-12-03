@@ -1,0 +1,62 @@
+{% extends "login.html" %}
+
+{% block title %}Sign Up - CineSense{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <h1>🎬 Join CineSense</h1>
+    
+    <form method="POST" action="/signup">
+        <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" required placeholder="Your name">
+        </div>
+        
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required placeholder="Your email">
+        </div>
+        
+        <div class="form-group">
+            <label for="age">Age</label>
+            <input type="number" id="age" name="age" min="1" max="120" required placeholder="Your age">
+        </div>
+        
+        <div class="form-group">
+            <label for="gender">Gender</label>
+            <select id="gender" name="gender" required style="width: 100%; padding: 12px 15px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: white; font-size: 14px;">
+                <option value="" style="background: #1a1a1a; color: white;">Select...</option>
+                <option value="Male" style="background: #1a1a1a; color: white;">Male</option>
+                <option value="Female" style="background: #1a1a1a; color: white;">Female</option>
+                <option value="Other" style="background: #1a1a1a; color: white;">Other</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="genre">Favorite Genre</label>
+            <select id="genre" name="genre" required style="width: 100%; padding: 12px 15px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: white; font-size: 14px;">
+                <option value="" style="background: #1a1a1a; color: white;">Select...</option>
+                <option value="Action" style="background: #1a1a1a; color: white;">Action</option>
+                <option value="Romance" style="background: #1a1a1a; color: white;">Romance</option>
+                <option value="Comedy" style="background: #1a1a1a; color: white;">Comedy</option>
+                <option value="Thriller" style="background: #1a1a1a; color: white;">Thriller</option>
+                <option value="Sci-Fi" style="background: #1a1a1a; color: white;">Sci-Fi</option>
+                <option value="Horror" style="background: #1a1a1a; color: white;">Horror</option>
+                <option value="Adventure" style="background: #1a1a1a; color: white;">Adventure</option>
+                <option value="Drama" style="background: #1a1a1a; color: white;">Drama</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required placeholder="Create a password">
+        </div>
+        
+        <button type="submit" class="btn-primary">Sign Up</button>
+    </form>
+    
+    <div class="auth-links">
+        <p>Already have an account? <a href="/login">Login</a></p>
+    </div>
+</div>
+{% endblock %}

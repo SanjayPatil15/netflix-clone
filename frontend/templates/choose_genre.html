@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Genre - CineSense{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>🎭 Choose Your Genre</h1>
+        <p>Explore movies by category</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; margin-top: 40px;">
+        {% for genre in genres %}
+        <a href="/recommend_by_genre/{{ genre }}" style="text-decoration: none;">
+            <div class="genre-card" style="height: 280px;">
+                <img src="/static/genre_posters/{{ genre.lower() }}.jpg" alt="{{ genre }}" onerror="this.src='/static/default_poster.png'">
+                <div class="overlay">
+                    <h4 style="font-size: 22px;">{{ genre }}</h4>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

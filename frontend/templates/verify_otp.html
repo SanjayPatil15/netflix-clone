@@ -1,0 +1,23 @@
+{% extends "login.html" %}
+
+{% block title %}Verify OTP - CineSense{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <h1>🔐 Verify OTP</h1>
+    <p style="text-align: center; color: #999; margin-bottom: 30px;">Enter the OTP sent to {{ email }}</p>
+    
+    <form method="POST">
+        <div class="form-group">
+            <label for="otp">OTP Code</label>
+            <input type="text" id="otp" name="otp" maxlength="6" required autofocus placeholder="Enter 6-digit OTP">
+        </div>
+        
+        <button type="submit" class="btn-primary">Verify</button>
+    </form>
+    
+    <div class="auth-links">
+        <p><a href="/login">Back to Login</a></p>
+    </div>
+</div>
+{% endblock %}

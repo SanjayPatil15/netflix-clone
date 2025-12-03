@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ selected_genre }} - CineSense{% endblock %}
+
+{% block content %}
+<script>
+// Prevent infinite loop on image error
+function handleImageError(img) {
+    if (!img.dataset.errorHandled) {
+        img.dataset.errorHandled = 'true';
+        img.src = '/static/default_poster.png';
+    }
+}
+</script>
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>{{ selected_genre }}</h1>
+        <p>Discover amazing movies tailored for you</p>
+    </div>
+
+    {% if recommendations %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; margin-top: 30px;">
+        {% for movie in recommendations %}
+        <div class="movie-card" onclick="openMovieModal(`{{ movie.title }}`)">
+            <img src="{{ movie.poster }}" alt="{{ movie.title }}" onerror="handleImageError(this)">
+            <div class="overlay">
+                <h4>{{ movie.title }}</h4>
+                {% if movie.reason %}
+                <p>{{ movie.reason }}</p>
+                {% endif %}
+                {% if movie.score %}
+                <p style="font-size: 11px; margin-top: 5px;">Match: {{ (movie.score * 100)|round|int }}%</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-msg" style="text-align: center; margin-top: 50px; font-size: 18px;">
+        No recommendations found. Try a different genre or search.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

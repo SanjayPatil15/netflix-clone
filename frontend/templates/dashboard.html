@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - CineSense{% endblock %}
+
+{% block content %}
+<script>
+// Prevent infinite loop on image error
+function handleImageError(img) {
+    if (!img.dataset.errorHandled) {
+        img.dataset.errorHandled = 'true';
+        img.src = '/static/default_poster.png';
+    }
+}
+</script>
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>Welcome{% if user %}, {{ user.name }}{% endif %}! 🎬</h1>
+        <p>Your personalized movie recommendations powered by AI</p>
+    </div>
+
+    <!-- AI Picks Section -->
+    <div class="carousel-section">
+        <h2>🤖 AI Picks For You</h2>
+        {% if ai_movies %}
+            <div class="carousel-container">
+                {% for movie in ai_movies %}
+                <div class="movie-card" onclick="openMovieModal(`{{ movie.title }}`)">
+                    <img src="{{ movie.poster }}" alt="{{ movie.title }}" onerror="handleImageError(this)">
+                    <div class="overlay">
+                        <h4>{{ movie.title }}</h4>
+                        <p>{{ movie.reason }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-msg">No AI recommendations yet. Rate some movies to get personalized suggestions!</p>
+        {% endif %}
+    </div>
+
+    <!-- Genres Section -->
+    <div class="carousel-section">
+        <h2>🎭 Browse by Genre</h2>
+        <div class="carousel-container">
+            {% for genre in genres %}
+            <a href="/recommend_by_genre/{{ genre.name }}" style="text-decoration: none;">
+                <div class="genre-card">
+                    <img src="/static/genre_posters/{{ genre.poster }}" alt="{{ genre.name }}" onerror="handleImageError(this)">
+                    <div class="overlay">
+                        <h4>{{ genre.name }}</h4>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Watchlist Section -->
+    {% if watchlist_movies %}
+    <div class="carousel-section">
+        <h2>❤️ Your Watchlist</h2>
+        <div class="carousel-container">
+            {% for movie in watchlist_movies[:12] %}
+            <div class="movie-card" onclick="openMovieModal(`{{ movie.title }}`)">
+                <img src="{{ movie.poster }}" alt="{{ movie.title }}" onerror="handleImageError(this)">
+                <div class="overlay">
+                    <h4>{{ movie.title }}</h4>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if watchlist_movies|length > 12 %}
+        <p style="text-align: center; margin-top: 15px;">
+            <a href="/watchlist" style="color: #e50914; text-decoration: none; font-weight: 600;">
+                View All ({{ watchlist_movies|length }}) →
+            </a>
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Trending Section -->
+    <div class="carousel-section">
+        <h2>🔥 Trending Now</h2>
+        {% if trending %}
+            <div class="carousel-container">
+                {% for movie in trending %}
+                <div class="movie-card" onclick="openMovieModal(`{{ movie.title }}`)">
+                    <img src="{{ movie.poster }}" alt="{{ movie.title }}" onerror="handleImageError(this)">
+                    <div class="overlay">
+                        <h4>{{ movie.title }}</h4>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-msg">No trending movies available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
