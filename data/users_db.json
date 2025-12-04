@@ -6732,5 +6732,37 @@
         "gender": "Female",
         "genre": "Sci-Fi",
         "password": "alice@123"
+    },
+    "asish@temp.com": {
+        "name": "Asish",
+        "age": "25",
+        "gender": "Male",
+        "country": "India",
+        "password": "asish@123",
+        "genres": "Comedy,Action,Thriller"
+    },
+    "temp_user@temp.com": {
+        "name": "temp_user",
+        "age": "20",
+        "gender": "Female",
+        "country": "India",
+        "password": "temp_user@123",
+        "genres": "Romance,Comedy,Thriller"
+    },
+    "temp_user1@temp.com": {
+        "name": "temp_user",
+        "age": "50",
+        "gender": "Female",
+        "country": "Italy",
+        "password": "temp_user@123",
+        "genres": "Romance,Horror,Comedy"
+    },
+    "user1@temp.com": {
+        "name": "user1",
+        "age": "52",
+        "gender": "Female",
+        "country": "Mexico",
+        "password": "user1@123",
+        "genres": "Romance,Comedy,Horror"
     }
 }

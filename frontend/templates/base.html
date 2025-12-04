@@ -472,6 +472,17 @@
                         <span id="modalRating"></span>
                     </div>
                     <p id="modalDescription"></p>
+                    
+                    <!-- Like/Dislike Buttons -->
+                    <div class="rating-buttons" style="margin: 15px 0; display: flex; gap: 10px;">
+                        <button id="likeBtn" onclick="rateMovie(5)" class="btn-rating" style="background: rgba(46, 213, 115, 0.2); border: 2px solid #2ed573; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: all 0.3s;">
+                            👍 Like
+                        </button>
+                        <button id="dislikeBtn" onclick="rateMovie(1)" class="btn-rating" style="background: rgba(255, 71, 87, 0.2); border: 2px solid #ff4757; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: all 0.3s;">
+                            👎 Dislike
+                        </button>
+                    </div>
+                    
                     <div class="modal-actions">
                         <button id="watchlistBtn" onclick="toggleWatchlist()" class="btn-primary">
                             <span id="watchlistIcon">❤️</span> <span id="watchlistText">Add to Watchlist</span>
@@ -648,6 +659,9 @@
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
                 
+                // Load user's rating for this movie
+                loadUserRating();
+                
                 // Auto-play trailer
                 autoPlayTrailer();
             })
@@ -769,6 +783,98 @@
     function viewSimilar() {
         closeMovieModal();
         window.location.href = `/recommend_by_movie/${encodeURIComponent(currentMovieTitle)}`;
+    }
+    
+    // Like/Dislike functionality
+    function rateMovie(rating) {
+        fetch('/rate_movie', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                title: currentMovieTitle,
+                rating: rating
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateRatingButtons(rating);
+                
+                // Show feedback
+                const message = rating === 5 ? '👍 Liked!' : '👎 Disliked!';
+                showToast(message);
+                
+                // If disliked, reload page after short delay to remove movie from view
+                if (rating === 1) {
+                    setTimeout(() => {
+                        closeMovieModal();
+                        window.location.reload();
+                    }, 1000); // 1 second delay to show toast
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Rating error:', err);
+        });
+    }
+    
+    function updateRatingButtons(rating) {
+        const likeBtn = document.getElementById('likeBtn');
+        const dislikeBtn = document.getElementById('dislikeBtn');
+        
+        // Reset both buttons
+        likeBtn.style.background = 'rgba(46, 213, 115, 0.2)';
+        likeBtn.style.transform = 'scale(1)';
+        dislikeBtn.style.background = 'rgba(255, 71, 87, 0.2)';
+        dislikeBtn.style.transform = 'scale(1)';
+        
+        // Highlight selected button
+        if (rating === 5) {
+            likeBtn.style.background = 'rgba(46, 213, 115, 0.5)';
+            likeBtn.style.transform = 'scale(1.1)';
+        } else if (rating === 1) {
+            dislikeBtn.style.background = 'rgba(255, 71, 87, 0.5)';
+            dislikeBtn.style.transform = 'scale(1.1)';
+        }
+    }
+    
+    function loadUserRating() {
+        fetch(`/get_user_rating/${encodeURIComponent(currentMovieTitle)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.rating) {
+                    updateRatingButtons(data.rating);
+                }
+            })
+            .catch(err => console.error('Error loading rating:', err));
+    }
+    
+    function showToast(message) {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(20, 20, 20, 0.95);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 2px solid #e50914;
+            font-size: 16px;
+            font-weight: 600;
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Remove after 2 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
     }
     
     // Close modal when clicking outside

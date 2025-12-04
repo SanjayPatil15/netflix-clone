@@ -264,27 +264,42 @@ def save_genres():
     
     data = request.get_json()
     genres = data.get("genres", [])
+    is_first_time = data.get("is_first_time", False)
     
-    if len(genres) != 3:
+    # Validate based on first time or not
+    if is_first_time and len(genres) != 3:
         return jsonify({"status": "error", "message": "Please select exactly 3 genres"})
+    elif not is_first_time and len(genres) != 1:
+        return jsonify({"status": "error", "message": "Please select 1 genre"})
     
     # Save to users JSON
     users = load_users()
     if email in users:
-        users[email]["genres"] = ",".join(genres)  # Store as comma-separated
+        if is_first_time:
+            # First time: save as preferred genres
+            users[email]["genres"] = ",".join(genres)
+        else:
+            # Returning user: just browsing, don't overwrite preferences
+            # We'll use this for filtering movies by genre
+            pass
         save_users(users)
     
-    # Also update database if user exists there
-    try:
-        db = next(get_db())
-        user = db.query(User).filter_by(email=email).first()
-        if user:
-            user.preferred_genres = ",".join(genres)
-            db.commit()
-    except Exception as e:
-        print(f"Error updating genres in database: {e}")
+    # Also update database if user exists there (only for first time)
+    if is_first_time:
+        try:
+            db = next(get_db())
+            user = db.query(User).filter_by(email=email).first()
+            if user:
+                user.preferred_genres = ",".join(genres)
+                db.commit()
+        except Exception as e:
+            print(f"Error updating genres in database: {e}")
     
-    return jsonify({"status": "success", "message": "Genres saved"})
+    return jsonify({
+        "status": "success",
+        "message": "Genres saved",
+        "redirect": "/dashboard" if is_first_time else f"/recommend_by_genre/{genres[0]}"
+    })
 
 
 @app.route("/logout")
@@ -363,11 +378,20 @@ def choose_genre():
         return redirect(url_for("login_view"))
     users = load_users()
     user = users.get(email)
+    
+    # Check if user has already selected genres (first time vs returning)
+    is_first_time = not user.get("genres")
+    
     genres = ["Action", "Romance", "Comedy", "Thriller", "Sci-Fi", "Horror", "Adventure", "Drama"]
     genres = [g.strip() for g in genres if g.strip()]
     all_posters = [f for f in os.listdir(POSTERS_DIR) if f.endswith(".jpg")]
     random_bg = random.choice(all_posters) if all_posters else "default_poster.png"
-    return render_template("choose_genre.html", user=user, genres=genres, random_bg=random_bg)
+    
+    return render_template("choose_genre.html",
+                         user=user,
+                         genres=genres,
+                         random_bg=random_bg,
+                         is_first_time=is_first_time)
 
 
 @app.route("/dashboard")
@@ -379,18 +403,35 @@ def dashboard():
     users = load_users()
     user = users.get(email)
 
-    # 🎯 AI Picks (using same logic as /ai route for consistency)
-    # Get user's watchlist to exclude from recommendations
+    # Get user's watchlist and ratings
     user_watchlist = load_watchlist().get(email, [])
     
+    # Get user's preferred genres
+    user_genres = user.get("genres", "").split(",") if user.get("genres") else []
+    user_genres = [g.strip() for g in user_genres if g.strip()]
+    
+    # Load user ratings to filter out disliked movies
+    ratings_file = "data/user_ratings.json"
+    user_ratings = {}
+    try:
+        with open(ratings_file, 'r') as f:
+            all_ratings = json.load(f)
+            user_ratings = all_ratings.get(email, {})
+    except:
+        pass
+    
+    # Get disliked movies (rating = 1)
+    disliked_movies = [title for title, data in user_ratings.items() if data.get("rating") == 1]
+    
+    # 🎯 AI Picks (personalized by genre and ratings)
     ai_movies = []
     try:
         rec = None
         try:
-            rec = hybrid_model.recommend(user_id=email, top_n=30)  # Get more to filter
+            rec = hybrid_model.recommend(user_id=email, top_n=60)  # Get more to filter
         except TypeError:
             try:
-                rec = hybrid_model.recommend(user_id=email, n=30)
+                rec = hybrid_model.recommend(user_id=email, n=60)
             except TypeError:
                 rec = hybrid_model.recommend(email)
         
@@ -398,35 +439,75 @@ def dashboard():
         if rec:
             first = rec[0]
             if isinstance(first, (list, tuple)):
-                # Extract movie IDs from tuples (movie_id, score)
                 for item in rec:
                     movie_ids.append(int(item[0]))
             else:
-                # Direct movie IDs
                 movie_ids = [int(x) for x in rec]
         
-        # Convert movie IDs to titles
+        # Convert movie IDs to titles and filter by user's genres
         titles = []
         for movie_id in movie_ids:
             movie_row = movies_df[movies_df["movieId"] == movie_id]
             if not movie_row.empty:
-                titles.append(movie_row.iloc[0]["title"])
+                title = movie_row.iloc[0]["title"]
+                genres = movie_row.iloc[0].get("genres", "")
+                
+                # If user has genre preferences, prioritize those
+                if user_genres:
+                    if any(ug.lower() in genres.lower() for ug in user_genres):
+                        titles.append(title)
+                else:
+                    titles.append(title)
         
-        # Filter out watchlist movies
-        filtered_titles = [t for t in titles if t not in user_watchlist]
+        # Filter out watchlist and disliked movies
+        filtered_titles = [t for t in titles if t not in user_watchlist and t not in disliked_movies]
+        
+        # If not enough, add genre-based recommendations
+        if len(filtered_titles) < 12 and user_genres:
+            for genre in user_genres:
+                genre_movies = movies_df[movies_df["genres"].str.contains(genre, case=False, na=False)]
+                genre_ids = genre_movies["movieId"].tolist()
+                genre_ratings = ratings_df[ratings_df["movieId"].isin(genre_ids)]
+                top_genre_ids = genre_ratings.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(20).index.tolist()
+                
+                for movie_id in top_genre_ids:
+                    movie_row = movies_df[movies_df["movieId"] == movie_id]
+                    if not movie_row.empty:
+                        title = movie_row.iloc[0]["title"]
+                        if title not in filtered_titles and title not in user_watchlist and title not in disliked_movies:
+                            filtered_titles.append(title)
+                            if len(filtered_titles) >= 20:
+                                break
+                if len(filtered_titles) >= 20:
+                    break
         
         if filtered_titles:
-            ai_movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized"} for t in filtered_titles[:12]]
+            ai_movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized for You"} for t in filtered_titles[:12]]
     except Exception as e:
         print(f"[WARN] AI recommendations failed: {e}")
+        import traceback
+        traceback.print_exc()
     
-    # Fallback to trending if no AI recommendations
+    # Fallback to genre-based trending if no AI recommendations
     if not ai_movies:
-        top_ids = ratings_df.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(30).index.tolist()
-        trending_titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
-        # Filter out watchlist movies from trending too
-        filtered_trending = [t for t in trending_titles if t not in user_watchlist]
-        ai_movies = [{"title": t, "poster": get_poster(t), "reason": "Trending"} for t in filtered_trending[:12]]
+        if user_genres:
+            # Get top rated from user's genres
+            for genre in user_genres:
+                genre_movies = movies_df[movies_df["genres"].str.contains(genre, case=False, na=False)]
+                genre_ids = genre_movies["movieId"].tolist()
+                genre_ratings = ratings_df[ratings_df["movieId"].isin(genre_ids)]
+                top_ids = genre_ratings.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(15).index.tolist()
+                trending_titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
+                filtered_trending = [t for t in trending_titles if t not in user_watchlist and t not in disliked_movies]
+                ai_movies.extend([{"title": t, "poster": get_poster(t), "reason": f"{genre} Picks"} for t in filtered_trending[:4]])
+                if len(ai_movies) >= 12:
+                    break
+        else:
+            # Generic top rated
+            top_ids = ratings_df.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(30).index.tolist()
+            trending_titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
+            filtered_trending = [t for t in trending_titles if t not in user_watchlist and t not in disliked_movies]
+            ai_movies = [{"title": t, "poster": get_poster(t), "reason": "Top Rated"} for t in filtered_trending[:12]]
 
     # ❤️ Watchlist
     watchlist_data = load_watchlist().get(email, [])
@@ -489,16 +570,36 @@ def ai_suggestions():
     if not email:
         return redirect(url_for("login_view"))
     
-    # Get user's watchlist to exclude from recommendations
+    # Get user data
+    users = load_users()
+    user = users.get(email, {})
     user_watchlist = load_watchlist().get(email, [])
     
+    # Get user's preferred genres
+    user_genres = user.get("genres", "").split(",") if user.get("genres") else []
+    user_genres = [g.strip() for g in user_genres if g.strip()]
+    
+    # Load user ratings to filter out disliked movies
+    ratings_file = "data/user_ratings.json"
+    user_ratings = {}
     try:
+        with open(ratings_file, 'r') as f:
+            all_ratings = json.load(f)
+            user_ratings = all_ratings.get(email, {})
+    except:
+        pass
+    
+    # Get disliked movies (rating = 1)
+    disliked_movies = [title for title, data in user_ratings.items() if data.get("rating") == 1]
+    
+    try:
+        # Start with hybrid model recommendations
         rec = None
         try:
-            rec = hybrid_model.recommend(user_id=email, top_n=40)  # Get more to filter
+            rec = hybrid_model.recommend(user_id=email, top_n=60)  # Get more to filter
         except TypeError:
             try:
-                rec = hybrid_model.recommend(user_id=email, n=40)
+                rec = hybrid_model.recommend(user_id=email, n=60)
             except TypeError:
                 rec = hybrid_model.recommend(email)
         
@@ -513,25 +614,57 @@ def ai_suggestions():
                 # Direct movie IDs
                 movie_ids = [int(x) for x in rec]
         
-        # Convert movie IDs to titles
+        # Convert movie IDs to titles and filter by user's genres
         titles = []
         for movie_id in movie_ids:
             movie_row = movies_df[movies_df["movieId"] == movie_id]
             if not movie_row.empty:
-                titles.append(movie_row.iloc[0]["title"])
+                title = movie_row.iloc[0]["title"]
+                genres = movie_row.iloc[0].get("genres", "")
+                
+                # If user has genre preferences, prioritize those
+                if user_genres:
+                    # Check if movie matches any of user's preferred genres
+                    if any(ug.lower() in genres.lower() for ug in user_genres):
+                        titles.append(title)
+                else:
+                    titles.append(title)
         
-        # Filter out watchlist movies
-        filtered_titles = [t for t in titles if t not in user_watchlist]
+        # Filter out watchlist movies and disliked movies
+        filtered_titles = [t for t in titles if t not in user_watchlist and t not in disliked_movies]
         
+        # If not enough personalized recommendations, add genre-based ones
+        if len(filtered_titles) < 20 and user_genres:
+            for genre in user_genres:
+                genre_movies = movies_df[movies_df["genres"].str.contains(genre, case=False, na=False)]
+                # Get top rated movies from this genre
+                genre_ids = genre_movies["movieId"].tolist()
+                genre_ratings = ratings_df[ratings_df["movieId"].isin(genre_ids)]
+                top_genre_ids = genre_ratings.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(20).index.tolist()
+                
+                for movie_id in top_genre_ids:
+                    movie_row = movies_df[movies_df["movieId"] == movie_id]
+                    if not movie_row.empty:
+                        title = movie_row.iloc[0]["title"]
+                        if title not in filtered_titles and title not in user_watchlist and title not in disliked_movies:
+                            filtered_titles.append(title)
+                            if len(filtered_titles) >= 30:
+                                break
+                if len(filtered_titles) >= 30:
+                    break
+        
+        # Fallback to top rated if still not enough
         if not filtered_titles:
             top_ids = ratings_df.groupby("movieId")["rating"].mean().sort_values(ascending=False).head(30).index.tolist()
             all_titles = movies_df[movies_df["movieId"].isin(top_ids)]["title"].tolist()
-            filtered_titles = [t for t in all_titles if t not in user_watchlist]
+            filtered_titles = [t for t in all_titles if t not in user_watchlist and t not in disliked_movies]
         
-        movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized"} for t in filtered_titles[:20]]
+        movies = [{"title": t, "poster": get_poster(t), "reason": "AI Personalized for You"} for t in filtered_titles[:20]]
         return render_template("recommendations.html", recommendations=movies, selected_genre="AI Picks")
     except Exception as e:
         print("❌ AI Picks error:", e)
+        import traceback
+        traceback.print_exc()
         flash("AI Recommendation temporarily unavailable.")
         return redirect(url_for("choose_genre"))
 
@@ -1017,6 +1150,67 @@ def movie_details(title):
         "in_watchlist": t in wl
     })
 
+
+
+# ---------------- LIKE/DISLIKE SYSTEM ----------------
+@app.route("/rate_movie", methods=["POST"])
+def rate_movie():
+    """Rate a movie (like=5, dislike=1)"""
+    email = load_session()
+    if not email:
+        return jsonify({"status": "error", "message": "Login required"})
+    
+    data = request.get_json()
+    title = data.get("title")
+    rating_value = data.get("rating")  # 5 for like, 1 for dislike
+    
+    if not title or rating_value not in [1, 5]:
+        return jsonify({"status": "error", "message": "Invalid data"})
+    
+    # Load user ratings
+    ratings_file = "data/user_ratings.json"
+    try:
+        with open(ratings_file, 'r') as f:
+            user_ratings = json.load(f)
+    except:
+        user_ratings = {}
+    
+    # Initialize user's ratings if not exists
+    if email not in user_ratings:
+        user_ratings[email] = {}
+    
+    # Save rating
+    user_ratings[email][title] = {
+        "rating": rating_value,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Save to file
+    with open(ratings_file, 'w') as f:
+        json.dump(user_ratings, f, indent=2)
+    
+    action = "liked" if rating_value == 5 else "disliked"
+    return jsonify({"status": "success", "message": f"You {action} {title}"})
+
+
+@app.route("/get_user_rating/<path:title>")
+def get_user_rating(title):
+    """Get user's rating for a movie"""
+    email = load_session()
+    if not email:
+        return jsonify({"rating": None})
+    
+    ratings_file = "data/user_ratings.json"
+    try:
+        with open(ratings_file, 'r') as f:
+            user_ratings = json.load(f)
+        
+        if email in user_ratings and title in user_ratings[email]:
+            return jsonify({"rating": user_ratings[email][title]["rating"]})
+    except:
+        pass
+    
+    return jsonify({"rating": None})
 
 
 # ---------------- MAIN ----------------

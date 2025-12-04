@@ -1,15 +1,41 @@
 {
-    "avik82of53@gmail.com": {
-        "Last Action Hero (1993)": 5,
-        "Toy Story (1995)": 4
+  "avik82of53@gmail.com": {
+    "Last Action Hero (1993)": 5,
+    "Toy Story (1995)": 4
+  },
+  "avkdd": {
+    "Dead Man Walking (1995)": 5
+  },
+  "asjdj": {
+    "Toy Story (1995)": 5
+  },
+  "asdg@gmail.com": {
+    "True Romance (1993)": 5
+  },
+  "user1@temp.com": {
+    "French Twist (Gazon maudit) (1995)": {
+      "rating": 5,
+      "timestamp": "2025-12-04T22:01:16.360368"
     },
-    "avkdd": {
-        "Dead Man Walking (1995)": 5
+    "Desperado (1995)": {
+      "rating": 5,
+      "timestamp": "2025-12-04T22:01:22.085433"
     },
-    "asjdj": {
-        "Toy Story (1995)": 5
+    "Mad Love (1995)": {
+      "rating": 1,
+      "timestamp": "2025-12-04T22:01:26.550369"
     },
-    "asdg@gmail.com": {
-        "True Romance (1993)": 5
+    "Star Wars (1977)": {
+      "rating": 1,
+      "timestamp": "2025-12-04T22:01:40.599356"
+    },
+    "Affair to Remember, An (1957)": {
+      "rating": 1,
+      "timestamp": "2025-12-04T22:04:36.516960"
+    },
+    "Empire Strikes Back, The (1980)": {
+      "rating": 1,
+      "timestamp": "2025-12-04T22:06:39.982448"
     }
+  }
 }
