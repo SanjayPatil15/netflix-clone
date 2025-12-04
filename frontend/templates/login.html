@@ -1,131 +1,210 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - CINESENSE</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block title %}Login - CineSense{% endblock %}
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
 
-{% block navbar %}{% endblock %}
+        /* Blurred Background */
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920') center/cover;
+            filter: blur(10px);
+            z-index: -1;
+        }
 
-{% block extra_css %}
-.auth-container {
-    max-width: 450px;
-    margin: 100px auto;
-    background: rgba(0, 0, 0, 0.85);
-    padding: 50px 40px;
-    border-radius: 15px;
-    box-shadow: 0 0 30px rgba(229, 9, 20, 0.4);
-}
+        .background::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+        }
 
-.auth-container h1 {
-    text-align: center;
-    margin-bottom: 30px;
-    color: #e50914;
-    text-shadow: 0 0 20px rgba(229, 9, 20, 0.6);
-}
+        /* Logo */
+        .logo {
+            position: absolute;
+            top: 30px;
+            left: 50px;
+            font-size: 32px;
+            font-weight: 900;
+            color: #E50914;
+            text-shadow: 0 0 20px rgba(229, 9, 20, 0.8);
+            letter-spacing: 2px;
+            z-index: 10;
+        }
 
-.form-group {
-    margin-bottom: 25px;
-}
+        /* Login Container */
+        .login-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 450px;
+            padding: 60px 70px;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            animation: fadeIn 0.5s ease;
+        }
 
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: #ddd;
-}
+        .login-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 30px;
+        }
 
-.form-group input {
-    width: 100%;
-    padding: 12px 15px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
-    color: white;
-    font-size: 14px;
-    transition: 0.3s;
-}
+        .form-group {
+            margin-bottom: 20px;
+        }
 
-.form-group input:focus {
-    outline: none;
-    border-color: #e50914;
-    box-shadow: 0 0 10px rgba(229, 9, 20, 0.3);
-}
+        .form-input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(51,51,51,0.7);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
 
-.btn-primary {
-    width: 100%;
-    padding: 14px;
-    background: #e50914;
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: 0.3s;
-}
+        .form-input:focus {
+            outline: none;
+            background: rgba(51,51,51,0.9);
+            border-color: #E50914;
+            box-shadow: 0 0 10px rgba(229, 9, 20, 0.3);
+        }
 
-.btn-primary:hover {
-    background: #f40612;
-    box-shadow: 0 0 20px rgba(229, 9, 20, 0.6);
-}
+        .form-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
 
-.auth-links {
-    text-align: center;
-    margin-top: 25px;
-    color: #999;
-}
+        .sign-in-btn {
+            width: 100%;
+            padding: 16px;
+            background: #E50914;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+        }
 
-.auth-links a {
-    color: #e50914;
-    text-decoration: none;
-    font-weight: 500;
-}
+        .sign-in-btn:hover {
+            background: #f40612;
+            box-shadow: 0 5px 20px rgba(229, 9, 20, 0.5);
+        }
 
-.auth-links a:hover {
-    text-decoration: underline;
-}
-{% endblock %}
+        .signup-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #999;
+            font-size: 14px;
+        }
 
-{% block content %}
-<div class="auth-container">
-    <h1>🎬 Login to CineSense</h1>
-    
-    <form method="POST" action="/login">
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required placeholder="Enter your email">
-        </div>
-        
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required placeholder="Enter your password">
-        </div>
-        
-        <button type="submit" class="btn-primary">Login</button>
-    </form>
-    
-    <div class="auth-links">
-        <p>Don't have an account? <a href="/signup">Sign up</a></p>
-        <p><a href="#" onclick="forgotPassword(); return false;">Forgot Password?</a></p>
-    </div>
-</div>
+        .signup-link a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
 
-<script>
-function forgotPassword() {
-    const email = prompt("Enter your email address:");
-    if (email) {
-        fetch('/forgot_password', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email: email})
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'success') {
-                window.location.href = data.redirect;
-            } else {
-                alert(data.message);
+        .signup-link a:hover {
+            color: #E50914;
+        }
+
+        .error-message {
+            background: rgba(229, 9, 20, 0.2);
+            border: 1px solid #E50914;
+            color: white;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -45%);
             }
-        });
-    }
-}
-</script>
-{% endblock %}
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .login-container {
+                width: 90%;
+                padding: 40px 30px;
+            }
+
+            .logo {
+                left: 20px;
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background -->
+    <div class="background"></div>
+
+    <!-- Logo -->
+    <div class="logo">CINESENSE</div>
+
+    <!-- Login Form -->
+    <div class="login-container">
+        <h1 class="login-title">Sign In</h1>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="error-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <input type="email" name="email" class="form-input" placeholder="Email" required>
+            </div>
+
+            <div class="form-group">
+                <input type="password" name="password" class="form-input" placeholder="Password" required>
+            </div>
+
+            <button type="submit" class="sign-in-btn">Sign In</button>
+        </form>
+
+        <div class="signup-link">
+            Don't have an account? <a href="/signup">Sign Up</a>
+        </div>
+    </div>
+</body>
+</html>

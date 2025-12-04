@@ -6764,5 +6764,13 @@
         "country": "Mexico",
         "password": "user1@123",
         "genres": "Romance,Comedy,Horror"
+    },
+    "tom@gmasil.ocm": {
+        "name": "tom",
+        "age": "68",
+        "gender": "Male",
+        "country": "United States",
+        "password": "123456",
+        "genres": "Action,Romance,Thriller"
     }
 }

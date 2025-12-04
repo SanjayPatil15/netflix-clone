@@ -35,7 +35,7 @@ from backend.models.ContentSimilarity import ContentBasedRecommender
 from backend.models.HybridModel import HybridRecommender
 
 OMDB_API_KEY = "55988766"
-TMDB_API_KEY = "3b603807d08eac0ea1b7cf3f85fae27d"
+TMDB_API_KEY = "a4a29e010ff1222cfcf4b851a99fddb3"
 YOUTUBE_API_KEY = "AIzaSyC24htkpXTRAeLXMKf4liYiUyIMtrPV1uU"
 
 
@@ -159,17 +159,54 @@ def find_poster(title: str, folder: str = "posters") -> str:
 
 def get_poster(title: str) -> str:
     """
-    First try exact cleaned filename inside static/posters/<clean>.jpg,
-    otherwise fall back to fuzzy search with find_poster().
+    Get movie poster with priority:
+    1. TMDB API (high quality) - ALWAYS TRY FIRST
+    2. Local static/posters folder - Only if TMDB fails
+    3. Fallback to default poster
     """
+    import re
+    
+    # Extract year from title if present
+    year_match = re.search(r'\((\d{4})\)', title)
+    year = int(year_match.group(1)) if year_match else None
+    clean_title = re.sub(r'\s*\(\d{4}\)\s*$', '', title).strip()
+    
+    # ALWAYS TRY TMDB API FIRST - Don't check local files first!
+    try:
+        import tmdbsimple as tmdb
+        tmdb.API_KEY = TMDB_API_KEY
+        
+        search = tmdb.Search()
+        if year:
+            response = search.movie(query=clean_title, year=year)
+        else:
+            response = search.movie(query=clean_title)
+        
+        if response.get('results') and len(response['results']) > 0:
+            poster_path = response['results'][0].get('poster_path')
+            if poster_path:
+                tmdb_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
+                print(f"✓ TMDB poster found for '{title}': {tmdb_url}")
+                return tmdb_url
+        
+        print(f"⚠ No TMDB results for '{title}', trying local...")
+    except Exception as e:
+        print(f"✗ TMDB API error for '{title}': {e}")
+    
+    # Only use local posters if TMDB completely failed
     filename = clean_filename(title)
     exact_jpg = os.path.join(POSTERS_DIR, f"{filename}.jpg")
     exact_png = os.path.join(POSTERS_DIR, f"{filename}.png")
+    
     if os.path.exists(exact_jpg):
+        print(f"→ Using local poster: {exact_jpg}")
         return "/static/posters/" + os.path.basename(exact_jpg)
     if os.path.exists(exact_png):
+        print(f"→ Using local poster: {exact_png}")
         return "/static/posters/" + os.path.basename(exact_png)
-    # fallback – smart search only within movie posters
+    
+    # Final fallback
+    print(f"→ Using fallback for '{title}'")
     return find_poster(title, folder="posters")
 
 
@@ -215,8 +252,8 @@ def home():
     if email:
         return redirect(url_for("dashboard"))
     else:
-        # (dev/demo) go to dashboard
-        return redirect(url_for("dashboard"))
+        # Show landing page for non-logged-in users
+        return render_template("index.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
