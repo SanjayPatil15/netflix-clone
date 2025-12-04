@@ -1,25 +1,175 @@
 {% extends "base.html" %}
 
-{% block title %}Choose Genre - CineSense{% endblock %}
+{% block title %}Choose Your Favorite Genres - CineSense{% endblock %}
 
 {% block content %}
+<style>
+.genre-selection-card {
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 3px solid transparent;
+}
+
+.genre-selection-card.selected {
+    border-color: #e50914;
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(229, 9, 20, 0.5);
+}
+
+.genre-selection-card .selection-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #e50914;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+    z-index: 10;
+}
+
+.genre-selection-card.selected .selection-badge {
+    display: flex;
+}
+
+.submit-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #e50914;
+    color: white;
+    border: none;
+    padding: 15px 40px;
+    border-radius: 50px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 5px 20px rgba(229, 9, 20, 0.4);
+    transition: all 0.3s ease;
+    z-index: 1000;
+    display: none;
+}
+
+.submit-btn:hover {
+    background: #c40812;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(229, 9, 20, 0.6);
+}
+
+.submit-btn.show {
+    display: block;
+}
+
+.selection-counter {
+    position: fixed;
+    top: 80px;
+    right: 30px;
+    background: rgba(20, 20, 20, 0.95);
+    padding: 15px 25px;
+    border-radius: 15px;
+    border: 2px solid #e50914;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    z-index: 1000;
+}
+</style>
+
 <div class="dashboard">
     <div class="dashboard-header">
-        <h1>🎭 Choose Your Genre</h1>
-        <p>Explore movies by category</p>
+        <h1>🎭 Choose Your 3 Favorite Genres</h1>
+        <p>Select exactly 3 genres to personalize your recommendations</p>
+    </div>
+
+    <div class="selection-counter" id="counter">
+        Selected: <span id="count">0</span>/3
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; margin-top: 40px;">
         {% for genre in genres %}
-        <a href="/recommend_by_genre/{{ genre }}" style="text-decoration: none;">
-            <div class="genre-card" style="height: 280px;">
-                <img src="/static/genre_posters/{{ genre.lower() }}.jpg" alt="{{ genre }}" onerror="this.src='/static/default_poster.png'">
-                <div class="overlay">
-                    <h4 style="font-size: 22px;">{{ genre }}</h4>
-                </div>
+        <div class="genre-card genre-selection-card" data-genre="{{ genre }}" onclick="toggleGenre(this)" style="height: 280px;">
+            <div class="selection-badge">✓</div>
+            <img src="/static/genre_posters/{{ genre.lower() }}.jpg" alt="{{ genre }}" onerror="this.src='/static/default_poster.png'">
+            <div class="overlay">
+                <h4 style="font-size: 22px;">{{ genre }}</h4>
             </div>
-        </a>
+        </div>
         {% endfor %}
     </div>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitGenres()">
+        Continue to Dashboard →
+    </button>
 </div>
+
+<script>
+let selectedGenres = [];
+const maxSelection = 3;
+
+function toggleGenre(card) {
+    const genre = card.getAttribute('data-genre');
+    const index = selectedGenres.indexOf(genre);
+    
+    if (index > -1) {
+        // Deselect
+        selectedGenres.splice(index, 1);
+        card.classList.remove('selected');
+    } else {
+        // Select (if not at max)
+        if (selectedGenres.length < maxSelection) {
+            selectedGenres.push(genre);
+            card.classList.add('selected');
+        } else {
+            // Show message
+            alert(`You can only select ${maxSelection} genres. Deselect one first.`);
+            return;
+        }
+    }
+    
+    updateUI();
+}
+
+function updateUI() {
+    document.getElementById('count').textContent = selectedGenres.length;
+    
+    const submitBtn = document.getElementById('submitBtn');
+    if (selectedGenres.length === maxSelection) {
+        submitBtn.classList.add('show');
+    } else {
+        submitBtn.classList.remove('show');
+    }
+}
+
+function submitGenres() {
+    if (selectedGenres.length !== maxSelection) {
+        alert(`Please select exactly ${maxSelection} genres`);
+        return;
+    }
+    
+    // Save genres and redirect
+    fetch('/save_genres', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({genres: selectedGenres})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            window.location.href = '/dashboard';
+        } else {
+            alert('Error saving genres. Please try again.');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        alert('Error saving genres. Please try again.');
+    });
+}
+</script>
 {% endblock %}

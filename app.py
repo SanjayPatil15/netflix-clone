@@ -244,14 +244,47 @@ def signup_view():
                 "name": request.form["name"],
                 "age": request.form["age"],
                 "gender": request.form["gender"],
-                "genre": request.form["genre"],
+                "country": request.form.get("country", "Other"),  # New field
                 "password": request.form["password"]
+                # Note: genres will be saved separately after genre selection page
             }
             users[email] = user_data
             save_users(users)
             save_session(email)
             return redirect(url_for("choose_genre"))
     return render_template("signup.html")
+
+
+@app.route("/save_genres", methods=["POST"])
+def save_genres():
+    """Save user's selected genres (called from choose_genre page)"""
+    email = load_session()
+    if not email:
+        return jsonify({"status": "error", "message": "Not logged in"})
+    
+    data = request.get_json()
+    genres = data.get("genres", [])
+    
+    if len(genres) != 3:
+        return jsonify({"status": "error", "message": "Please select exactly 3 genres"})
+    
+    # Save to users JSON
+    users = load_users()
+    if email in users:
+        users[email]["genres"] = ",".join(genres)  # Store as comma-separated
+        save_users(users)
+    
+    # Also update database if user exists there
+    try:
+        db = next(get_db())
+        user = db.query(User).filter_by(email=email).first()
+        if user:
+            user.preferred_genres = ",".join(genres)
+            db.commit()
+    except Exception as e:
+        print(f"Error updating genres in database: {e}")
+    
+    return jsonify({"status": "success", "message": "Genres saved"})
 
 
 @app.route("/logout")

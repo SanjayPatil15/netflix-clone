@@ -21,7 +21,8 @@ class User(Base):
     password = Column(String(255), nullable=False)
     age = Column(Integer)
     gender = Column(String(10))
-    preferred_genre = Column(String(50))
+    country = Column(String(100))  # New field for demographics
+    preferred_genres = Column(String(200))  # Changed to support multiple genres (comma-separated)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -33,6 +34,7 @@ class User(Base):
     __table_args__ = (
         Index('idx_user_email', 'email'),
         Index('idx_user_age_gender', 'age', 'gender'),
+        Index('idx_user_country', 'country'),
     )
     
     def __repr__(self):
@@ -52,7 +54,8 @@ class Movie(Base):
     plot = Column(Text)
     director = Column(String(200))
     cast = Column(Text)  # JSON string of cast members
-    poster_path = Column(String(500))
+    poster_path = Column(String(500))  # Local poster path
+    poster_url = Column(String(500))  # TMDB poster URL
     imdb_id = Column(String(20))
     tmdb_id = Column(Integer)
     avg_rating = Column(Float, default=0.0, index=True)
